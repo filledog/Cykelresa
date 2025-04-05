@@ -1,0 +1,82 @@
+import { useState, useEffect } from "react";
+import { MapContainer, TileLayer, Polyline, Marker, Popup, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+
+export default function CykelruttTracker() {
+  const [points, setPoints] = useState(() => {
+    const saved = localStorage.getItem("cykelrutt_points");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [playbackIndex, setPlaybackIndex] = useState(null);
+
+  useEffect(() => {
+    localStorage.setItem("cykelrutt_points", JSON.stringify(points));
+  }, [points]);
+
+  useEffect(() => {
+    if (playbackIndex === null || playbackIndex >= points.length) return;
+    const timer = setTimeout(() => {
+      setPlaybackIndex((i) => i + 1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [playbackIndex, points]);
+
+  function MapClickHandler() {
+    useMapEvents({
+      click(e) {
+        const newPoint = {
+          lat: e.latlng.lat,
+          lng: e.latlng.lng,
+          note: prompt("Vill du lägga till en anteckning för denna plats?") || ""
+        };
+        setPoints((prev) => [...prev, newPoint]);
+      },
+    });
+    return null;
+  }
+
+  function undoLastPoint() {
+    setPoints((prev) => prev.slice(0, -1));
+  }
+
+  function startPlayback() {
+    setPlaybackIndex(0);
+  }
+
+  const displayedPoints = playbackIndex === null ? points : points.slice(0, playbackIndex);
+
+  return (
+    <div className="h-screen w-screen relative">
+      <MapContainer center={[55.6761, 12.5683]} zoom={5} className="h-full w-full">
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
+        />
+        <MapClickHandler />
+        <Polyline positions={displayedPoints.map(p => [p.lat, p.lng])} color="blue" />
+        {displayedPoints.map((point, index) => (
+          <Marker key={index} position={[point.lat, point.lng]}>
+            <Popup>
+              <strong>Etapp {index + 1}</strong><br />
+              {point.note || "Ingen anteckning"}
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+      <div className="absolute top-4 right-4 flex flex-col gap-2">
+        <button
+          onClick={undoLastPoint}
+          className="bg-white shadow px-4 py-2 rounded-xl hover:bg-gray-100"
+        >
+          Ångra senaste punkt
+        </button>
+        <button
+          onClick={startPlayback}
+          className="bg-white shadow px-4 py-2 rounded-xl hover:bg-gray-100"
+        >
+          Spela upp rutt
+        </button>
+      </div>
+    </div>
+  );
+}
